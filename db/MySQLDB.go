@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -84,17 +85,16 @@ func ExampleStr() {
 	}
 	fileStr := string(filebytes)
 	fmt.Println(fileStr)
-	//mapTemp := make(map[string]map[string]string)
-	//json.Unmarshal([]byte(fileStr), &mapTemp)
-	//fmt.Println(mapTemp)
 }
 
 // 用于解析配置文件
 func ParseConfigFile() *map[string]map[string]string {
-	//输入文件位置
+	//输入文件位置,去掉换行符
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Println("请输入json配置文件路径，回车键结束，模板参考前面示例：")
 	name, err1 := reader.ReadString('\n')
+	name = strings.TrimSuffix(name, "\n")
+	name = strings.TrimSuffix(name, "\r")
 	if err1 != nil {
 		fmt.Println("输入有误", err1)
 		os.Exit(1)
@@ -118,8 +118,15 @@ func ParseConfigFile() *map[string]map[string]string {
 			break
 		}
 	}
-	//解析成字符串
-	jsonStr := string(buffer)
-	fmt.Println(jsonStr)
+	//解析成map形式
+	//buffer = bytes.ReplaceAll(buffer, []byte{'\r', '\n'}, []byte{})
+	//fmt.Println(buffer)
+	mapTemp := make(map[string]map[string]string)
+	err4 := json.Unmarshal(buffer, &mapTemp)
+	if err4 != nil {
+		fmt.Println("json反序列化失败", err4)
+		os.Exit(1)
+	}
+	fmt.Println(mapTemp)
 	return nil
 }

@@ -5,5 +5,5 @@ import (
 )
 
 func main() {
-	db.ExampleStr()
+	db.ParseConfigFile()
 }
