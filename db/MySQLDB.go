@@ -9,18 +9,21 @@ package db
  */
 import (
 	"bufio"
+	"bytes"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+	"unicode"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
-// 表结构
-type InfoTables string
+//go:embed resource/*
+var Fs embed.FS
 
 // 表结构，通是绑定表名，使用指针的原因，是为了处理空的默认值操作
 type InfoColumns struct {
@@ -49,13 +52,42 @@ type InfoColumns struct {
 }
 
 // 绑定表名
-func (i InfoTables) TableName() string {
-	return "TABLES"
-}
-
-// 绑定表名
 func (i *InfoColumns) TableName() string {
 	return "COLUMNS"
+}
+
+// 组合操作
+func CombinationOp() {
+	ExampleStr()
+	configMap := ParseConfigFile()
+	connect := GetMySQLTCPConnect((*configMap)["db"]["user"], (*configMap)["db"]["password"],
+		"information_schema", (*configMap)["db"]["host"], (*configMap)["db"]["port"])
+	tableData := GetSpecificTableDefine(connect, (*configMap)["db"]["dbName"], (*configMap)["db"]["tableName"])
+	columnsData := GetSpecificTableColumsDefine(connect, (*configMap)["db"]["dbName"], (*configMap)["db"]["tableName"])
+	fmt.Println(*tableData)
+	for _, value := range *columnsData {
+		fmt.Println(*(value.ColumnName), *(value.DataType), *(value.ColumnComment), *(value.ColumnKey), *(value.Extra))
+	}
+}
+
+// 生成po的文档
+func GeneratePO(tableData *map[string]interface{}, columnsData *[]InfoColumns) *string {
+	return nil
+}
+
+// 读取要定义的表结构
+func GetSpecificTableDefine(connect *gorm.DB, dbName, tableName string) *map[string]interface{} {
+	var results map[string]interface{}
+	connect.Table("TABLES").Select("table_name as tableName, table_comment as tableComment, create_time as createTime").
+		Where(" table_schema = ? AND table_name = ? ", dbName, tableName).Take(&results)
+	return &results
+}
+
+// 读取要定义的表结构
+func GetSpecificTableColumsDefine(connect *gorm.DB, dbName, tableName string) *[]InfoColumns {
+	var results []InfoColumns
+	connect.Where(" table_schema = ? AND table_name = ? ", dbName, tableName).Order("ordinal_position").Find(&results)
+	return &results
 }
 
 // 获取数据库连接
@@ -71,36 +103,39 @@ func GetMySQLTCPConnect(user, password, dbname, host, port string) *gorm.DB {
 
 // 模板示例
 func ExampleStr() {
-	var tip string
-	tip = "目前只是支持MySQL数据库,db表示数据库相关信息，author表示作者信息，typeMapping表示字段类型和java类型的映射关系,下面给出配置文件的json示例："
-	fmt.Println(tip)
-	mapConfig := make(map[string]map[string]string)
-	mapConfig["db"] = map[string]string{"user": "admin", "password": "123456", "host": "127.0.0.1", "port": "3306", "dbName": "demoDatabase", "tableName": "demoXiaohaizi"}
-	mapConfig["author"] = map[string]string{"packageName": "com.zhc.test", "author": "xiaohaizi", "email": "12345@qq.com", "tablePrefix": "fk_"}
-	mapConfig["typeMapping"] = map[string]string{"tinyint": "Byte", "smallint": "Integer", "mediumint": "Integer", "int": "Integer", "integer": "Integer", "bigint": "Long", "float": "Float", "double": "Double", "decimal": "BigDecimal", "bit": "Boolean", "char": "String", "varchar": "String", "tinytext": "String", "text": "String", "mediumtext": "String", "longtext": "String", "date": "LocalDate", "datetime": "LocalDateTime", "timestamp": "LocalDateTime"}
-	filebytes, err := json.MarshalIndent(mapConfig, "", "    ")
-	if err != nil {
-		fmt.Println("系统格式化json失败，直接退出", err)
+	//提供选项
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("\n是否需要显示json文件配置示例[Y/N]：")
+	name, err1 := reader.ReadString('\n')
+	if err1 != nil {
+		fmt.Println("是否需要显示json文件配置示例输出失败", err1)
 		os.Exit(1)
 	}
-	fileStr := string(filebytes)
-	fmt.Println(fileStr)
+	name = strings.TrimSpace(name)
+	if name == "N" || name == "n" {
+		return
+	}
+	content, err2 := Fs.ReadFile("resource/configjson.txt")
+	if err2 != nil {
+		fmt.Println("系统读取json模板文件失败，直接退出", err2)
+		os.Exit(1)
+	}
+	fmt.Println(string(content))
 }
 
 // 用于解析配置文件
 func ParseConfigFile() *map[string]map[string]string {
 	//输入文件位置,去掉换行符
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Println("请输入json配置文件路径，回车键结束，模板参考前面示例：")
+	fmt.Print("请输入json配置文件路径，回车键结束，模板参考前面示例：")
 	name, err1 := reader.ReadString('\n')
-	name = strings.TrimSuffix(name, "\n")
-	name = strings.TrimSuffix(name, "\r")
 	if err1 != nil {
-		fmt.Println("输入有误", err1)
+		fmt.Println("文件路径输入有误", err1)
 		os.Exit(1)
 	}
+	name = strings.TrimSpace(name)
 	//开始解析文件
-	const BufferSize = 1024 * 1024
+	const BufferSize = 1024
 	file, err2 := os.Open(name)
 	if err2 != nil {
 		fmt.Println("文件打开失败", err2)
@@ -118,15 +153,22 @@ func ParseConfigFile() *map[string]map[string]string {
 			break
 		}
 	}
-	//解析成map形式
-	//buffer = bytes.ReplaceAll(buffer, []byte{'\r', '\n'}, []byte{})
-	//fmt.Println(buffer)
+	//去掉不可见字符
+	needTrimChar := []byte{'\r', '\t', '\v', '\f', '\n', ' ', 0x85, 0xA0}
+	for _, value := range buffer {
+		if !unicode.IsPrint(rune(value)) {
+			needTrimChar = append(needTrimChar, value)
+		}
+	}
+	for _, value := range needTrimChar {
+		buffer = bytes.Replace(buffer, []byte{value}, []byte(""), -1)
+	}
+	//转成map
 	mapTemp := make(map[string]map[string]string)
 	err4 := json.Unmarshal(buffer, &mapTemp)
 	if err4 != nil {
 		fmt.Println("json反序列化失败", err4)
 		os.Exit(1)
 	}
-	fmt.Println(mapTemp)
-	return nil
+	return &mapTemp
 }

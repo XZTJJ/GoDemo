@@ -5,5 +5,5 @@ import (
 )
 
 func main() {
-	db.ParseConfigFile()
+	db.CombinationOp()
 }
