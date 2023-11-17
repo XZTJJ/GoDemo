@@ -1,0 +1,43 @@
+package {{.PackageName}}.mapper.po;
+
+import lombok.Data;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableName;
+import io.swagger.annotations.ApiModel;
+import io.swagger.annotations.ApiModelProperty;
+import java.io.Serializable;
+{{- if .HasDate}}
+import java.util.Date;
+{{- end}}
+{{- if .HasBigDecimal}}
+import java.math.BigDecimal;
+{{- end}}
+{{- if .HasLocalDate}}
+import java.time.LocalDate;
+{{- end}}
+{{- if .HasLocalDateTime}}
+import java.time.LocalDateTime;
+{{- end}}
+
+/**
+ * {{.TableComments}}
+ *
+ * @author {{.Author}}
+ * @version 1.0
+ * @desc
+ * @date {{.Datetime}}
+ */
+@Data
+@TableName(value = "{{.TableName}}")
+@ApiModel(value = "{{.TableName}}PO对象", description = "{{.TableComments}}")
+public class {{.ClassName}}PO implements Serializable {
+    private static final long serialVersionUID = 1L;
+    {{range .PoFields}}
+    /**
+     * {{.ColumnComments}}
+     */
+    @ApiModelProperty("{{.ColumnComments}}")
+    @TableField(value = "{{.ColumnName}}")
+    private {{.DataType}} {{.FieldName}};
+    {{end}}
+}

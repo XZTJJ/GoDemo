@@ -16,6 +16,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"text/template"
 	"time"
 	"unicode"
 
@@ -26,23 +27,76 @@ import (
 //go:embed resource/*
 var Fs embed.FS
 
+const TimeFormat = "2023-11-17 12:47:00"
+
 // 组合操作
 func CombinationOp() {
 	defer ErrorHandler()
 	ExampleStr()
 	config := ParseConfigFile()
-	connect := GetMySQLTCPConnect(*config.Db.User, *config.Db.Password, "information_schema",
-		*config.Db.Host, *config.Db.Port)
+	connect := GetMySQLTCPConnect(config.Db, "information_schema")
 	tableData := GetSpecificTableDefine(connect, *config.Db.DbName, *config.Db.TableName)
 	columnsData := GetSpecificTableColumsDefine(connect, *config.Db.DbName, *config.Db.TableName)
-	fmt.Println(tableData.String())
-	for _, value := range *columnsData {
-		fmt.Println(value.String())
-	}
+	GeneratePO(tableData, columnsData, config)
 }
 
 // 生成po的文档
-func GeneratePO(tableData *map[string]interface{}, columnsData *[]InfoColumns) *string {
+func GeneratePO(tableData *InfoTable, columnsData *[]InfoColumns, config *JsonConfig) *string {
+	var po PoTemplate
+	if config.Summary != nil && config.Summary.PackageName != nil {
+		po.PackageName = *config.Summary.PackageName
+	}
+	if tableData.TableComment != nil {
+		po.TableComments = *tableData.TableComment
+	}
+	if config.Summary != nil && config.Summary.Author != nil {
+		po.Author = *config.Summary.Author
+	}
+	if tableData.CreateTime != nil {
+		timeStr := (*tableData.CreateTime).Format(TimeFormat)
+		po.Datetime = timeStr
+	}
+	if config.Db != nil && config.Db.TableName != nil {
+		po.TableName = *config.Db.TableName
+		className := UderscoreToUpperCamelCase(po.TableName)
+		if className[0] >= 97 && className[0] <= 122 {
+			className[0] = className[0] - 32
+		}
+		po.ClassName = string(className)
+	}
+	if columnsData != nil {
+		for _, column := range *columnsData {
+			var field PoField
+			if column.ColumnComment != nil {
+				field.ColumnComments = *column.ColumnComment
+			}
+			if column.ColumnName != nil {
+				field.ColumnName = *column.ColumnName
+				field.FieldName = string(UderscoreToUpperCamelCase(*column.ColumnName))
+			}
+			if column.DataType != nil {
+				dateType := *column.DataType
+				field.DataType = (*config.TypeMapping)[dateType]
+				switch strings.ToLower(field.DataType) {
+				case "date":
+					po.HasDate = true
+				case "localdate":
+					po.HasLocalDate = true
+				case "localdatetime":
+					po.HasLocalDateTime = true
+				case "bigdecimal":
+					po.HasBigDecimal = true
+				}
+			}
+			po.PoFields = append(po.PoFields, field)
+		}
+	}
+	//加载模板
+	t1, err := template.ParseFS(Fs, "resource/poTemplate.txt")
+	if err != nil {
+		panic(err)
+	}
+	t1.Execute(os.Stdout, po)
 	return nil
 }
 
@@ -62,13 +116,29 @@ func GetSpecificTableColumsDefine(connect *gorm.DB, dbName, tableName string) *[
 }
 
 // 获取数据库连接
-func GetMySQLTCPConnect(user, password, dbname, host, port string) *gorm.DB {
+func GetMySQLTCPConnect(db *DbConfig, dbname string) *gorm.DB {
+	var user, password, host, port string = "", "", "", "80"
+	if db.User != nil {
+		user = *db.User
+	}
+	if db.Password != nil {
+		password = *db.Password
+	}
+	if db.Host != nil {
+		host = *db.Host
+	}
+	if db.Port != nil {
+		port = *db.Port
+	}
+	if user == "" || password == "" || host == "" || port == "" {
+		panic("数据库配置错误，账号，密码，host，端口不能为空")
+	}
 	openUrl := user + ":" + password + "@tcp(" + host + ":" + port + ")/" + dbname + "?charset=utf8mb4&parseTime=True&loc=Local"
-	db, err := gorm.Open(mysql.Open(openUrl))
+	connect, err := gorm.Open(mysql.Open(openUrl))
 	if err != nil {
 		panic(err)
 	}
-	return db
+	return connect
 }
 
 // 模板示例
@@ -140,7 +210,26 @@ func ParseConfigFile() *JsonConfig {
 // 错误处理
 func ErrorHandler() {
 	if r := recover(); r != nil {
-		fmt.Printf("错误:%s", r)
+		fmt.Printf("错误：%s", r)
 		time.Sleep(10 * time.Second)
 	}
+}
+
+// 下划线转驼峰写法
+func UderscoreToUpperCamelCase(s string) []byte {
+	strBytes := []byte(s)
+	i, isSplit := 0, false
+	for _, value := range strBytes {
+		if value == '_' || value == '-' {
+			isSplit = true
+		} else {
+			//a对应的ASCII编码为97,A的编码为65，z为122，Z为90
+			if isSplit && value >= 97 && value <= 122 {
+				value = value - 32
+			}
+			strBytes[i] = value
+			i, isSplit = i+1, false
+		}
+	}
+	return strBytes[:i]
 }

@@ -64,14 +64,77 @@ func (i *InfoTable) TableName() string {
 
 // 打印对象
 func (i *InfoTable) String() string {
-	format := `TableCatalog:%v, TableSchema:%v, TableNameStr:%v, TableType:%v, Engine:%v, Version:%v, 
-RowFormat:%v, TableRows:%v, AvgRowLength:%v, DataLength:%v, MaxDataLength:%v, IndexLength:%v, DataFree:%v, 
-AutoIncrement:%v, CreateTime:%v, UpdateTime:%v, CheckTime:%v, TableCollation:%v, Checksum:%v, CreateOptions:%v, TableComment:%v`
-	str := fmt.Sprintf(format, *i.TableCatalog, *i.TableSchema, *i.TableNameStr, *i.TableType, *i.Engine, *i.Version,
-		*i.RowFormat, *i.TableRows, *i.AvgRowLength, *i.DataLength, *i.MaxDataLength, *i.IndexLength, *i.DataFree,
-		*i.AutoIncrement, *i.CreateTime, *i.UpdateTime, *i.CheckTime, *i.TableCollation, *i.Checksum,
-		*i.CreateOptions, *i.TableComment)
-	return str
+	var buffer bytes.Buffer
+	buffer.WriteString("{")
+	if i.TableCatalog != nil {
+		buffer.WriteString(fmt.Sprintf("TableCatalog:\"%s\",", *i.TableCatalog))
+	}
+	if i.TableSchema != nil {
+		buffer.WriteString(fmt.Sprintf("TableSchema:\"%s\",", *i.TableSchema))
+	}
+	if i.TableNameStr != nil {
+		buffer.WriteString(fmt.Sprintf("TableNameStr:\"%s\",", *i.TableNameStr))
+	}
+	if i.TableType != nil {
+		buffer.WriteString(fmt.Sprintf("TableType:\"%s\",", *i.TableType))
+	}
+	if i.Engine != nil {
+		buffer.WriteString(fmt.Sprintf("Engine:\"%s\",", *i.Engine))
+	}
+	if i.Version != nil {
+		buffer.WriteString(fmt.Sprintf("Version:\"%d\",", *i.Version))
+	}
+	if i.RowFormat != nil {
+		buffer.WriteString(fmt.Sprintf("RowFormat:\"%s\",", *i.RowFormat))
+	}
+	if i.TableRows != nil {
+		buffer.WriteString(fmt.Sprintf("TableRows:\"%d\",", *i.TableRows))
+	}
+	if i.AvgRowLength != nil {
+		buffer.WriteString(fmt.Sprintf("AvgRowLength:\"%d\",", *i.AvgRowLength))
+	}
+	if i.DataLength != nil {
+		buffer.WriteString(fmt.Sprintf("DataLength:\"%d\",", *i.DataLength))
+	}
+	if i.MaxDataLength != nil {
+		buffer.WriteString(fmt.Sprintf("MaxDataLength:\"%d\",", *i.MaxDataLength))
+	}
+	if i.IndexLength != nil {
+		buffer.WriteString(fmt.Sprintf("IndexLength:\"%d\",", *i.IndexLength))
+	}
+	if i.DataFree != nil {
+		buffer.WriteString(fmt.Sprintf("DataFree:\"%d\",", *i.DataFree))
+	}
+	if i.AutoIncrement != nil {
+		buffer.WriteString(fmt.Sprintf("AutoIncrement:\"%d\",", *i.AutoIncrement))
+	}
+	if i.CreateTime != nil {
+		buffer.WriteString(fmt.Sprintf("CreateTime:\"%s\",", *i.CreateTime))
+	}
+	if i.UpdateTime != nil {
+		buffer.WriteString(fmt.Sprintf("UpdateTime:\"%s\",", *i.UpdateTime))
+	}
+	if i.CheckTime != nil {
+		buffer.WriteString(fmt.Sprintf("CheckTime:\"%s\",", *i.CheckTime))
+	}
+	if i.TableCollation != nil {
+		buffer.WriteString(fmt.Sprintf("TableCollation:\"%s\",", *i.TableCollation))
+	}
+	if i.Checksum != nil {
+		buffer.WriteString(fmt.Sprintf("Checksum:\"%s\",", *i.Checksum))
+	}
+	if i.CreateOptions != nil {
+		buffer.WriteString(fmt.Sprintf("CreateOptions:\"%s\",", *i.CreateOptions))
+	}
+	if i.TableComment != nil {
+		buffer.WriteString(fmt.Sprintf("TableComment:\"%s\",", *i.TableComment))
+	}
+	tempBytes := buffer.Bytes()
+	if tempBytes[len(tempBytes)-1] == ',' {
+		tempBytes = tempBytes[:len(tempBytes)-1]
+	}
+	tempBytes = append(tempBytes, '}')
+	return string(tempBytes)
 }
 
 // 绑定表名
@@ -81,15 +144,80 @@ func (i *InfoColumns) TableName() string {
 
 // 打印对象
 func (i *InfoColumns) String() string {
-	format := `"TableCatalog:%s, TableSchema:%s, TableNameStr:%s, ColumnName:%s, OrdinalPosition:%d, 
-ColumnDefault:%s, IsNullable:%s, DataType:%s, CharacterMaximumLength:%d, CharacterOctetLength:%d, 
-NumericPrecision:%d, NumericScale:%d, DatetimePrecision:%d, CharacterSetName:%s, CollationName:%s, 
-ColumnType:%s, ColumnKey:%s, Extra:%s, Privileges:%s, ColumnComment:%s, GenerationExpression:%s, SrsId:%s"`
-	str := fmt.Sprintf(format, *i.TableCatalog, *i.TableSchema, *i.TableNameStr, *i.ColumnName, *i.OrdinalPosition,
-		*i.ColumnDefault, *i.IsNullable, *i.DataType, *i.CharacterMaximumLength, *i.CharacterOctetLength,
-		*i.NumericPrecision, *i.NumericScale, *i.DatetimePrecision, *i.CharacterSetName, *i.CollationName,
-		*i.ColumnType, *i.ColumnKey, *i.Extra, *i.Privileges, *i.ColumnComment, *i.GenerationExpression, *i.SrsId)
-	return str
+	var buffer bytes.Buffer
+	buffer.WriteString("{")
+	if i.TableCatalog != nil {
+		buffer.WriteString(fmt.Sprintf("TableCatalog:\"%s\",", *i.TableCatalog))
+	}
+	if i.TableSchema != nil {
+		buffer.WriteString(fmt.Sprintf("TableSchema:\"%s\",", *i.TableSchema))
+	}
+	if i.TableNameStr != nil {
+		buffer.WriteString(fmt.Sprintf("TableNameStr:\"%s\",", *i.TableNameStr))
+	}
+	if i.ColumnName != nil {
+		buffer.WriteString(fmt.Sprintf("ColumnName:\"%s\",", *i.ColumnName))
+	}
+	if i.OrdinalPosition != nil {
+		buffer.WriteString(fmt.Sprintf("OrdinalPosition:\"%d\",", *i.OrdinalPosition))
+	}
+	if i.ColumnDefault != nil {
+		buffer.WriteString(fmt.Sprintf("ColumnDefault:\"%s\",", *i.ColumnDefault))
+	}
+	if i.IsNullable != nil {
+		buffer.WriteString(fmt.Sprintf("IsNullable:\"%s\",", *i.IsNullable))
+	}
+	if i.DataType != nil {
+		buffer.WriteString(fmt.Sprintf("DataType:\"%s\",", *i.DataType))
+	}
+	if i.CharacterMaximumLength != nil {
+		buffer.WriteString(fmt.Sprintf("CharacterMaximumLength:\"%d\",", *i.CharacterMaximumLength))
+	}
+	if i.CharacterOctetLength != nil {
+		buffer.WriteString(fmt.Sprintf("CharacterOctetLength:\"%d\",", *i.CharacterOctetLength))
+	}
+	if i.NumericPrecision != nil {
+		buffer.WriteString(fmt.Sprintf("NumericPrecision:\"%d\",", *i.NumericPrecision))
+	}
+	if i.NumericScale != nil {
+		buffer.WriteString(fmt.Sprintf("NumericScale:\"%d\",", *i.NumericScale))
+	}
+	if i.DatetimePrecision != nil {
+		buffer.WriteString(fmt.Sprintf("DatetimePrecision:\"%d\",", *i.DatetimePrecision))
+	}
+	if i.CharacterSetName != nil {
+		buffer.WriteString(fmt.Sprintf("CharacterSetName:\"%s\",", *i.CharacterSetName))
+	}
+	if i.CollationName != nil {
+		buffer.WriteString(fmt.Sprintf("CollationName:\"%s\",", *i.CollationName))
+	}
+	if i.ColumnType != nil {
+		buffer.WriteString(fmt.Sprintf("ColumnType:\"%s\",", *i.ColumnType))
+	}
+	if i.ColumnKey != nil {
+		buffer.WriteString(fmt.Sprintf("ColumnKey:\"%s\",", *i.ColumnKey))
+	}
+	if i.Extra != nil {
+		buffer.WriteString(fmt.Sprintf("Extra:\"%s\",", *i.Extra))
+	}
+	if i.Privileges != nil {
+		buffer.WriteString(fmt.Sprintf("Privileges:\"%s\",", *i.Privileges))
+	}
+	if i.ColumnComment != nil {
+		buffer.WriteString(fmt.Sprintf("ColumnComment:\"%s\",", *i.ColumnComment))
+	}
+	if i.GenerationExpression != nil {
+		buffer.WriteString(fmt.Sprintf("GenerationExpression:\"%s\",", *i.GenerationExpression))
+	}
+	if i.SrsId != nil {
+		buffer.WriteString(fmt.Sprintf("SrsId:\"%s\",", *i.SrsId))
+	}
+	tempBytes := buffer.Bytes()
+	if tempBytes[len(tempBytes)-1] == ',' {
+		tempBytes = tempBytes[:len(tempBytes)-1]
+	}
+	tempBytes = append(tempBytes, '}')
+	return string(tempBytes)
 }
 
 // 数据库的配置
@@ -119,25 +247,91 @@ type JsonConfig struct {
 
 // JsonConfig的格式化方式
 func (j *JsonConfig) String() string {
-	db := fmt.Sprintf("Db:{DbName:%s,Host:%s,Password:%s,Port:%s,TableName:%s,User:%s}", *j.Db.DbName,
-		*j.Db.Host, *j.Db.Password, *j.Db.Port, *j.Db.TableName, *j.Db.User)
-	summary := fmt.Sprintf("Summary:{Author:%s,Email:%s,PackageName:%s,TablePrefix:%s}", *j.Summary.Author,
-		*j.Summary.Email, *j.Summary.PackageName, *j.Summary.TablePrefix)
 	var buffer bytes.Buffer
 	buffer.WriteString("{")
-	buffer.WriteString(db)
-	buffer.WriteString(",")
-	buffer.WriteString(summary)
-	buffer.WriteString(",TypeMapping:{")
-	for key, value := range *j.TypeMapping {
-		buffer.WriteString(key)
-		buffer.WriteString(":")
-		buffer.WriteString(value)
-		buffer.WriteString(",")
+	if j.Db != nil {
+		buffer.WriteString("Db{")
+		if j.Db.DbName != nil {
+			buffer.WriteString(fmt.Sprintf("DbName:\"%s\",", *j.Db.DbName))
+		}
+		if j.Db.Host != nil {
+			buffer.WriteString(fmt.Sprintf("Host:\"%s\",", *j.Db.Host))
+		}
+		if j.Db.Password != nil {
+			buffer.WriteString(fmt.Sprintf("Password:\"%s\",", *j.Db.Password))
+		}
+		if j.Db.Port != nil {
+			buffer.WriteString(fmt.Sprintf("Port:\"%s\",", *j.Db.Port))
+		}
+		if j.Db.TableName != nil {
+			buffer.WriteString(fmt.Sprintf("TableName:\"%s\",", *j.Db.TableName))
+		}
+		if j.Db.User != nil {
+			buffer.WriteString(fmt.Sprintf("User:\"%s\",", *j.Db.User))
+		}
+		tempBytes := buffer.Bytes()
+		if tempBytes[len(tempBytes)-1] == ',' {
+			tempBytes = tempBytes[:len(tempBytes)-1]
+			buffer = *bytes.NewBuffer(tempBytes)
+		}
+		buffer.WriteString("},")
 	}
-	temp := []byte(buffer.String())
-	temp = temp[:len(temp)-1]
-	temp = append(temp, '}')
-	temp = append(temp, '}')
-	return string(temp)
+	if j.Summary != nil {
+		buffer.WriteString("Summary:{")
+		if j.Summary.Author != nil {
+			buffer.WriteString(fmt.Sprintf("Author:\"%s\",", *j.Summary.Author))
+		}
+		if j.Summary.Email != nil {
+			buffer.WriteString(fmt.Sprintf("Email:\"%s\",", *j.Summary.Email))
+		}
+		if j.Summary.PackageName != nil {
+			buffer.WriteString(fmt.Sprintf("PackageName:\"%s\",", *j.Summary.PackageName))
+		}
+		if j.Summary.TablePrefix != nil {
+			buffer.WriteString(fmt.Sprintf("TablePrefix:\"%s\",", *j.Summary.TablePrefix))
+		}
+		tempBytes := buffer.Bytes()
+		if tempBytes[len(tempBytes)-1] == ',' {
+			tempBytes = tempBytes[:len(tempBytes)-1]
+			buffer = *bytes.NewBuffer(tempBytes)
+		}
+		buffer.WriteString("},")
+	}
+	if j.TypeMapping != nil {
+		buffer.WriteString(" TypeMapping:{")
+		for key, value := range *j.TypeMapping {
+			buffer.WriteString(fmt.Sprintf("%s:\"%s\",", key, value))
+		}
+		tempBytes := buffer.Bytes()
+		if tempBytes[len(tempBytes)-1] == ',' {
+			tempBytes = tempBytes[:len(tempBytes)-1]
+			buffer = *bytes.NewBuffer(tempBytes)
+		}
+		buffer.WriteString("}")
+	}
+	buffer.WriteString("}")
+	return buffer.String()
+}
+
+// 字段对象
+type PoField struct {
+	ColumnComments string
+	ColumnName     string
+	FieldName      string
+	DataType       string
+}
+
+// PO对象
+type PoTemplate struct {
+	HasDate          bool
+	HasBigDecimal    bool
+	HasLocalDate     bool
+	HasLocalDateTime bool
+	PackageName      string
+	TableComments    string
+	Author           string
+	Datetime         string
+	TableName        string
+	ClassName        string
+	PoFields         []PoField
 }
