@@ -1,0 +1,15 @@
+package {{.PackageName}};
+
+import com.baomidou.mybatisplus.extension.service.IService;
+import {{.PoPackageName}}.{{.PoClassName}};
+
+/**
+ * {{.TableComments}}
+ *
+ * @author {{.Author}}
+ * @version 1.0
+ * @desc
+ * @date {{.Datetime}}
+ */
+public interface {{.ClassName}} extends IService<{{.PoClassName}}> {
+}

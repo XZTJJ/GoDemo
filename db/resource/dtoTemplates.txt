@@ -1,8 +1,6 @@
 package {{.PackageName}};
 
 import lombok.Data;
-import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableName;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import java.io.Serializable;
@@ -22,15 +20,13 @@ import java.time.LocalDateTime;
 /**
  * {{.TableComments}}
  *
- * ps: 主键和类的字段映射关系自己配置
  * @author {{.Author}}
  * @version 1.0
  * @desc
  * @date {{.Datetime}}
  */
 @Data
-@TableName(value = "{{.TableName}}")
-@ApiModel(value = "{{.TableName}}对象", description = "{{.TableComments}}")
+@ApiModel(value = "{{.TableName}}DTO对象", description = "{{.TableComments}}")
 public class {{.ClassName}} implements Serializable {
     private static final long serialVersionUID = 1L;
     {{range .PoFields}}
@@ -38,7 +34,6 @@ public class {{.ClassName}} implements Serializable {
      * {{.ColumnComments}}
      */
     @ApiModelProperty("{{.ColumnComments}}")
-    @TableField(value = "{{.ColumnName}}")
     private {{.DataType}} {{.FieldName}};
     {{end}}
 }

@@ -1,0 +1,19 @@
+package {{.PackageName}};
+
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import org.springframework.stereotype.Service;
+import {{.PoPackageName}}.{{.PoClassName}};
+import {{.MapperJavaClassPackageName}}.{{.MapperJavaClassClassName}};
+import {{.ServicePackageName}}.{{.ServiceClassName}};
+
+/**
+ * {{.TableComments}}
+ *
+ * @author {{.Author}}
+ * @version 1.0
+ * @desc
+ * @date {{.Datetime}}
+ */
+@Service
+public class {{.ClassName}} extends ServiceImpl<{{.MapperJavaClassClassName}}, {{.PoClassName}}> implements {{.ServiceClassName}} {
+}

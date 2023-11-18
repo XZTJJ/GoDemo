@@ -1,0 +1,16 @@
+package {{.PackageName}};
+
+import {{.PoPackageName}}.{{.PoClassName}};
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+
+/**
+ * {{.TableComments}}
+ *
+ * @author {{.Author}}
+ * @version 1.0
+ * @desc
+ * @date {{.Datetime}}
+ */
+public interface {{.ClassName}} extends BaseMapper<{{.PoClassName}}> {
+    
+}

@@ -3,7 +3,26 @@ package db
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"time"
+)
+
+// 定义常量
+const (
+	//相关包名后缀
+	PO_PACKEAGE_SUFFIX           = ".api.po"
+	DTO_PACKEAGE_SUFFIX          = ".api.dto"
+	MAPPER_PACKEAGE_SUFFIX       = ".api.mapper"
+	CONTROLLER_PACKEAGE_SUFFIX   = ".controller"
+	SERVICE_PACKEAGE_SUFFIX      = ".service"
+	SERVICE_IMPL_PACKEAGE_SUFFIX = ".service.impl"
+	//相关类名后缀
+	PO_CLASS_SUFFIX           = "PO"
+	DTO_CLASS_SUFFIX          = "DTO"
+	MAPPER_CLASS_SUFFIX       = "Mapper"
+	CONTROLLER_CLASS_SUFFIX   = "Controller"
+	SERVICE_CLASS_SUFFIX      = "Service"
+	SERVICE_IMPL_CLASS_SUFFIX = "ServiceImpl"
 )
 
 // 表的表结构，通是绑定对应表，使用指针的原因，是为了处理空的默认值操作
@@ -241,7 +260,7 @@ type SummaryConfig struct {
 // json配置文件配置
 type JsonConfig struct {
 	Db          *DbConfig          `json:"db"`
-	Summary     *SummaryConfig     `json:"author"`
+	Summary     *SummaryConfig     `json:"summary"`
 	TypeMapping *map[string]string `json:"typeMapping"`
 }
 
@@ -313,16 +332,16 @@ func (j *JsonConfig) String() string {
 	return buffer.String()
 }
 
-// 字段对象
-type PoField struct {
+// 字段模板
+type JavaPoField struct {
 	ColumnComments string
 	ColumnName     string
 	FieldName      string
 	DataType       string
 }
 
-// PO对象
-type PoTemplate struct {
+// PO对象模板
+type JavaPoTemplate struct {
 	HasDate          bool
 	HasBigDecimal    bool
 	HasLocalDate     bool
@@ -333,5 +352,234 @@ type PoTemplate struct {
 	Datetime         string
 	TableName        string
 	ClassName        string
-	PoFields         []PoField
+	PoFields         []JavaPoField
+	FilePathName     string
+}
+
+// 生成PoTemplate对象的方法
+func (po *JavaPoTemplate) FillPoTemplate(tableData *InfoTable, columnsData *[]InfoColumns, config *JsonConfig) {
+	if config.Summary != nil && config.Summary.PackageName != nil {
+		po.PackageName = *config.Summary.PackageName
+	}
+	if tableData.TableComment != nil {
+		po.TableComments = *tableData.TableComment
+	}
+	if config.Summary != nil && config.Summary.Author != nil {
+		po.Author = *config.Summary.Author
+	}
+	if tableData.CreateTime != nil {
+		timeStr := (*tableData.CreateTime).Format(TimeFormat)
+		po.Datetime = timeStr
+	}
+	if config.Db != nil && config.Db.TableName != nil {
+		po.TableName = *config.Db.TableName
+		className := UderscoreToUpperCamelCase(po.TableName)
+		if className[0] >= 97 && className[0] <= 122 {
+			className[0] = className[0] - 32
+		}
+		po.ClassName = string(className)
+	}
+	if columnsData != nil {
+		for _, column := range *columnsData {
+			var field JavaPoField
+			if column.ColumnComment != nil {
+				field.ColumnComments = *column.ColumnComment
+			}
+			if column.ColumnName != nil {
+				field.ColumnName = *column.ColumnName
+				field.FieldName = string(UderscoreToUpperCamelCase(*column.ColumnName))
+			}
+			if column.DataType != nil {
+				dateType := *column.DataType
+				field.DataType = (*config.TypeMapping)[dateType]
+				switch strings.ToLower(field.DataType) {
+				case "date":
+					po.HasDate = true
+				case "localdate":
+					po.HasLocalDate = true
+				case "localdatetime":
+					po.HasLocalDateTime = true
+				case "bigdecimal":
+					po.HasBigDecimal = true
+				}
+			}
+			po.PoFields = append(po.PoFields, field)
+		}
+	}
+}
+
+// PO的java对象
+type PoJavaClass JavaPoTemplate
+
+// 构建PO的java对象
+func (po *PoJavaClass) FillPoJavaClass(p *JavaPoTemplate) {
+	po.HasDate = p.HasDate
+	po.HasBigDecimal = p.HasBigDecimal
+	po.HasLocalDate = p.HasLocalDate
+	po.HasLocalDateTime = p.HasLocalDateTime
+	po.PackageName = p.PackageName + PO_PACKEAGE_SUFFIX
+	po.TableName = p.TableName
+	po.TableComments = p.TableComments
+	po.Author = p.Author
+	po.Datetime = p.Datetime
+	po.ClassName = p.ClassName + PO_CLASS_SUFFIX
+	po.PoFields = p.PoFields
+	po.FilePathName = ModifyFileName(po.PackageName+"."+po.ClassName, ".java")
+}
+
+// DTO的java对象
+type DtoJavaClass JavaPoTemplate
+
+// 构建DTO的java对象
+func (dto *DtoJavaClass) FillDtoJavaClass(p *JavaPoTemplate) {
+	dto.HasDate = p.HasDate
+	dto.HasBigDecimal = p.HasBigDecimal
+	dto.HasLocalDate = p.HasLocalDate
+	dto.HasLocalDateTime = p.HasLocalDateTime
+	dto.PackageName = p.PackageName + DTO_PACKEAGE_SUFFIX
+	dto.TableName = p.TableName
+	dto.TableComments = p.TableComments
+	dto.Author = p.Author
+	dto.Datetime = p.Datetime
+	dto.ClassName = p.ClassName + DTO_CLASS_SUFFIX
+	dto.PoFields = p.PoFields
+	dto.FilePathName = ModifyFileName(dto.PackageName+"."+dto.ClassName, ".java")
+}
+
+// mapper的java的接口对象
+type MapperJavaClass struct {
+	PackageName   string
+	ClassName     string
+	TableComments string
+	TableName     string
+	Author        string
+	Datetime      string
+	FilePathName  string
+	PoPackageName string
+	PoClassName   string
+}
+
+// 生成 mapper的java对象
+func (i *MapperJavaClass) FillMapperJavaClass(p *JavaPoTemplate, po *PoJavaClass) {
+	i.PackageName = p.PackageName + MAPPER_PACKEAGE_SUFFIX
+	i.ClassName = p.ClassName + MAPPER_CLASS_SUFFIX
+	i.TableComments = p.TableComments
+	i.TableName = p.TableName
+	i.Author = p.Author
+	i.Datetime = p.Datetime
+	i.FilePathName = ModifyFileName(i.PackageName+"."+i.ClassName, ".java")
+	i.PoPackageName = po.PackageName
+	i.PoClassName = po.ClassName
+}
+
+// mapper的xml的接口对象
+type MapperXmlFile struct {
+	MapperJavaClassPackageName string
+	MapperJavaClassClassName   string
+	ClassName                  string
+	FilePathName               string
+	PoPackageName              string
+	PoClassName                string
+	PoFields                   []JavaPoField
+}
+
+// 生成 mappper 的xml对象
+func (m *MapperXmlFile) FillMapperXmlFile(p *JavaPoTemplate, po *PoJavaClass, i *MapperJavaClass) {
+	m.MapperJavaClassPackageName = i.PackageName
+	m.MapperJavaClassClassName = i.ClassName
+	m.ClassName = p.ClassName
+	m.FilePathName = ModifyFileName(m.MapperJavaClassPackageName+"."+m.MapperJavaClassClassName, ".xml")
+	m.PoPackageName = po.PackageName
+	m.PoClassName = po.ClassName
+	m.PoFields = p.PoFields
+}
+
+// controller的Java对象
+type ControllerJavaClass struct {
+	PackageName    string
+	ClassName      string
+	TableComments  string
+	TableName      string
+	Author         string
+	Datetime       string
+	RequestMapping string
+	FilePathName   string
+}
+
+// 生成controller的Java对象
+func (c *ControllerJavaClass) FillControllerJavaClass(p *JavaPoTemplate) {
+	c.PackageName = p.PackageName + CONTROLLER_PACKEAGE_SUFFIX
+	c.ClassName = p.ClassName + CONTROLLER_CLASS_SUFFIX
+	c.TableComments = p.TableComments
+	c.TableName = p.TableName
+	c.Author = p.Author
+	c.Datetime = p.Datetime
+	c.RequestMapping = p.ClassName
+	c.FilePathName = ModifyFileName(c.PackageName+"."+c.ClassName, ".java")
+}
+
+// service的Java对象
+type ServiceJavaClass struct {
+	PackageName   string
+	ClassName     string
+	TableComments string
+	TableName     string
+	Author        string
+	Datetime      string
+	PoPackageName string
+	PoClassName   string
+	FilePathName  string
+}
+
+// 生成service的Java对象
+func (s *ServiceJavaClass) FillServiceJavaClass(p *JavaPoTemplate, po *PoJavaClass) {
+	s.PackageName = p.PackageName + SERVICE_PACKEAGE_SUFFIX
+	s.ClassName = p.ClassName + SERVICE_CLASS_SUFFIX
+	s.TableComments = p.TableComments
+	s.TableName = p.TableName
+	s.Author = p.Author
+	s.Datetime = p.Datetime
+	s.PoPackageName = po.PackageName
+	s.PoClassName = po.ClassName
+	s.FilePathName = ModifyFileName(s.PackageName+"."+s.ClassName, ".java")
+}
+
+// serviceImpl的Java对象
+type ServiceImplJavaClass struct {
+	PackageName                string
+	ClassName                  string
+	TableComments              string
+	TableName                  string
+	Author                     string
+	Datetime                   string
+	PoPackageName              string
+	PoClassName                string
+	MapperJavaClassPackageName string
+	MapperJavaClassClassName   string
+	ServicePackageName         string
+	ServiceClassName           string
+	FilePathName               string
+}
+
+// 生成serviceImpl的Java对象
+func (si *ServiceImplJavaClass) FillServiceImplJavaClass(p *JavaPoTemplate, po *PoJavaClass, i *MapperJavaClass, s *ServiceJavaClass) {
+	si.PackageName = p.PackageName + SERVICE_IMPL_PACKEAGE_SUFFIX
+	si.ClassName = p.ClassName + SERVICE_IMPL_CLASS_SUFFIX
+	si.TableComments = p.TableComments
+	si.TableName = p.TableName
+	si.Author = p.Author
+	si.Datetime = p.Datetime
+	si.PoPackageName = po.PackageName
+	si.PoClassName = po.ClassName
+	si.MapperJavaClassPackageName = i.PackageName
+	si.MapperJavaClassClassName = i.ClassName
+	si.ServicePackageName = s.PackageName
+	si.ServiceClassName = s.ClassName
+	si.FilePathName = ModifyFileName(si.PackageName+"."+si.ClassName, ".java")
+}
+
+// 保存内容用的dto
+type TemplateJavaFile struct {
+	FilePathName string
+	content      string
 }

@@ -37,67 +37,90 @@ func CombinationOp() {
 	connect := GetMySQLTCPConnect(config.Db, "information_schema")
 	tableData := GetSpecificTableDefine(connect, *config.Db.DbName, *config.Db.TableName)
 	columnsData := GetSpecificTableColumsDefine(connect, *config.Db.DbName, *config.Db.TableName)
-	GeneratePO(tableData, columnsData, config)
+	fileStr := GenerateJavaString(tableData, columnsData, config)
+	for _, value := range fileStr {
+		fmt.Println(value.FilePathName)
+		fmt.Println(value.content)
+		fmt.Printf("\n\n\n\n\n")
+	}
 }
 
-// 生成po的文档
-func GeneratePO(tableData *InfoTable, columnsData *[]InfoColumns, config *JsonConfig) *string {
-	var po PoTemplate
-	if config.Summary != nil && config.Summary.PackageName != nil {
-		po.PackageName = *config.Summary.PackageName
+// 生成Java的文件内容
+func GenerateJavaString(tableData *InfoTable, columnsData *[]InfoColumns, config *JsonConfig) []TemplateJavaFile {
+	//生成对应的po模板对象
+	p := JavaPoTemplate{}
+	p.FillPoTemplate(tableData, columnsData, config)
+	//生成PoJavaClass对象
+	po := PoJavaClass{}
+	po.FillPoJavaClass(&p)
+	poFile := ParseTemplate(po)
+	//生成DtoJavaClass对象
+	dto := DtoJavaClass{}
+	dto.FillDtoJavaClass(&p)
+	dtoFile := ParseTemplate(dto)
+	//生成mapperJavaClass对象
+	mapperJava := MapperJavaClass{}
+	mapperJava.FillMapperJavaClass(&p, &po)
+	mapperJavaFile := ParseTemplate(mapperJava)
+	//生成mapperXml对象
+	mapperXml := MapperXmlFile{}
+	mapperXml.FillMapperXmlFile(&p, &po, &mapperJava)
+	mapperXmlFile := ParseTemplate(mapperXml)
+	//生成controller对象
+	controller := ControllerJavaClass{}
+	controller.FillControllerJavaClass(&p)
+	controllerFile := ParseTemplate(controller)
+	//生成service对象
+	service := ServiceJavaClass{}
+	service.FillServiceJavaClass(&p, &po)
+	serviceFile := ParseTemplate(service)
+	//生成serviceImpl对象
+	serviceImpl := ServiceImplJavaClass{}
+	serviceImpl.FillServiceImplJavaClass(&p, &po, &mapperJava, &service)
+	serviceImplFile := ParseTemplate(serviceImpl)
+	return []TemplateJavaFile{poFile, dtoFile, mapperJavaFile, mapperXmlFile, controllerFile, serviceFile, serviceImplFile}
+}
+
+// 解析模板并且返回字符串
+func ParseTemplate(v interface{}) TemplateJavaFile {
+	tFile := TemplateJavaFile{}
+	resourceTemplateFile := ""
+	switch t := v.(type) {
+	case PoJavaClass:
+		tFile.FilePathName = PoJavaClass(t).FilePathName
+		resourceTemplateFile = "resource/poTemplate.txt"
+	case DtoJavaClass:
+		tFile.FilePathName = DtoJavaClass(t).FilePathName
+		resourceTemplateFile = "resource/dtoTemplates.txt"
+	case MapperJavaClass:
+		tFile.FilePathName = MapperJavaClass(t).FilePathName
+		resourceTemplateFile = "resource/mapperJava.txt"
+	case MapperXmlFile:
+		tFile.FilePathName = MapperXmlFile(t).FilePathName
+		resourceTemplateFile = "resource/mapperXml.txt"
+	case ControllerJavaClass:
+		tFile.FilePathName = ControllerJavaClass(t).FilePathName
+		resourceTemplateFile = "resource/controller.txt"
+	case ServiceJavaClass:
+		tFile.FilePathName = ServiceJavaClass(t).FilePathName
+		resourceTemplateFile = "resource/service.txt"
+	case ServiceImplJavaClass:
+		tFile.FilePathName = ServiceImplJavaClass(t).FilePathName
+		resourceTemplateFile = "resource/serviceImpl.txt"
+	default:
+		panic("没有配置对应类型解析")
 	}
-	if tableData.TableComment != nil {
-		po.TableComments = *tableData.TableComment
+	var tmplBytes bytes.Buffer
+	t1, err1 := template.ParseFS(Fs, resourceTemplateFile)
+	if err1 != nil {
+		panic(err1)
 	}
-	if config.Summary != nil && config.Summary.Author != nil {
-		po.Author = *config.Summary.Author
+	err2 := t1.Execute(&tmplBytes, v)
+	if err2 != nil {
+		panic(err2)
 	}
-	if tableData.CreateTime != nil {
-		timeStr := (*tableData.CreateTime).Format(TimeFormat)
-		po.Datetime = timeStr
-	}
-	if config.Db != nil && config.Db.TableName != nil {
-		po.TableName = *config.Db.TableName
-		className := UderscoreToUpperCamelCase(po.TableName)
-		if className[0] >= 97 && className[0] <= 122 {
-			className[0] = className[0] - 32
-		}
-		po.ClassName = string(className)
-	}
-	if columnsData != nil {
-		for _, column := range *columnsData {
-			var field PoField
-			if column.ColumnComment != nil {
-				field.ColumnComments = *column.ColumnComment
-			}
-			if column.ColumnName != nil {
-				field.ColumnName = *column.ColumnName
-				field.FieldName = string(UderscoreToUpperCamelCase(*column.ColumnName))
-			}
-			if column.DataType != nil {
-				dateType := *column.DataType
-				field.DataType = (*config.TypeMapping)[dateType]
-				switch strings.ToLower(field.DataType) {
-				case "date":
-					po.HasDate = true
-				case "localdate":
-					po.HasLocalDate = true
-				case "localdatetime":
-					po.HasLocalDateTime = true
-				case "bigdecimal":
-					po.HasBigDecimal = true
-				}
-			}
-			po.PoFields = append(po.PoFields, field)
-		}
-	}
-	//加载模板
-	t1, err := template.ParseFS(Fs, "resource/poTemplate.txt")
-	if err != nil {
-		panic(err)
-	}
-	t1.Execute(os.Stdout, po)
-	return nil
+	tFile.content = tmplBytes.String()
+	return tFile
 }
 
 // 读取要定义的表结构
@@ -232,4 +255,10 @@ func UderscoreToUpperCamelCase(s string) []byte {
 		}
 	}
 	return strBytes[:i]
+}
+
+// 生成文件名
+func ModifyFileName(fullPathClassName string, fileSuffix string) string {
+	path := strings.ReplaceAll(fullPathClassName, ".", string(os.PathSeparator))
+	return path + fileSuffix
 }

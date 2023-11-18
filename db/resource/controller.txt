@@ -1,0 +1,18 @@
+package {{.PackageName}};
+
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestMapping;
+
+/**
+ * {{.TableComments}}
+ *
+ * @author {{.Author}}
+ * @version 1.0
+ * @desc
+ * @date {{.Datetime}}
+ */
+@RestController
+@RequestMapping("/{{.RequestMapping}}")
+public class {{.ClassName}} {
+
+}
