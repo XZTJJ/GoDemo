@@ -12,7 +12,7 @@ const (
 	//相关包名后缀
 	PO_PACKEAGE_SUFFIX           = ".api.po"
 	DTO_PACKEAGE_SUFFIX          = ".api.dto"
-	MAPPER_PACKEAGE_SUFFIX       = ".api.mapper"
+	MAPPER_PACKEAGE_SUFFIX       = ".mapper"
 	CONTROLLER_PACKEAGE_SUFFIX   = ".controller"
 	SERVICE_PACKEAGE_SUFFIX      = ".service"
 	SERVICE_IMPL_PACKEAGE_SUFFIX = ".service.impl"
@@ -23,6 +23,8 @@ const (
 	CONTROLLER_CLASS_SUFFIX   = "Controller"
 	SERVICE_CLASS_SUFFIX      = "Service"
 	SERVICE_IMPL_CLASS_SUFFIX = "ServiceImpl"
+	//时间格式化
+	TIME_FORMAT = "2006-01-02 15:04:06"
 )
 
 // 表的表结构，通是绑定对应表，使用指针的原因，是为了处理空的默认值操作
@@ -368,7 +370,7 @@ func (po *JavaPoTemplate) FillPoTemplate(tableData *InfoTable, columnsData *[]In
 		po.Author = *config.Summary.Author
 	}
 	if tableData.CreateTime != nil {
-		timeStr := (*tableData.CreateTime).Format(TimeFormat)
+		timeStr := (*tableData.CreateTime).Format(TIME_FORMAT)
 		po.Datetime = timeStr
 	}
 	if config.Db != nil && config.Db.TableName != nil {

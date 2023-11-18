@@ -8,6 +8,7 @@ package db
  *  go get gorm.io/driver/mysql
  */
 import (
+	"archive/zip"
 	"bufio"
 	"bytes"
 	"embed"
@@ -27,8 +28,6 @@ import (
 //go:embed resource/*
 var Fs embed.FS
 
-const TimeFormat = "2023-11-17 12:47:00"
-
 // 组合操作
 func CombinationOp() {
 	defer ErrorHandler()
@@ -38,11 +37,30 @@ func CombinationOp() {
 	tableData := GetSpecificTableDefine(connect, *config.Db.DbName, *config.Db.TableName)
 	columnsData := GetSpecificTableColumsDefine(connect, *config.Db.DbName, *config.Db.TableName)
 	fileStr := GenerateJavaString(tableData, columnsData, config)
-	for _, value := range fileStr {
-		fmt.Println(value.FilePathName)
-		fmt.Println(value.content)
-		fmt.Printf("\n\n\n\n\n")
+	BuildToZip(&fileStr, config)
+}
+
+// 将打包成zip
+func BuildToZip(a *[]TemplateJavaFile, config *JsonConfig) {
+	zipFileName := *config.Db.TableName + ".zip"
+	out, err := os.Create(zipFileName)
+	if err != nil {
+		panic(err)
 	}
+	defer out.Close()
+	writer := zip.NewWriter(out)
+	for _, file := range *a {
+		fileWriter, err2 := writer.Create(file.FilePathName)
+		if err2 != nil {
+			panic(err2)
+		}
+		fileWriter.Write([]byte(file.content))
+	}
+	if err3 := writer.Close(); err3 != nil {
+		panic(err3)
+	}
+	fmt.Println("已经在当前目录生成了对应的zip包，包名为: " + zipFileName)
+	time.Sleep(10 * time.Second)
 }
 
 // 生成Java的文件内容
