@@ -254,7 +254,6 @@ type DbConfig struct {
 // 作者信息配置
 type SummaryConfig struct {
 	Author      *string `json:"author"`
-	Email       *string `json:"email"`
 	PackageName *string `json:"packageName"`
 	TablePrefix *string `json:"tablePrefix"`
 }
@@ -301,9 +300,6 @@ func (j *JsonConfig) String() string {
 		buffer.WriteString("Summary:{")
 		if j.Summary.Author != nil {
 			buffer.WriteString(fmt.Sprintf("Author:\"%s\",", *j.Summary.Author))
-		}
-		if j.Summary.Email != nil {
-			buffer.WriteString(fmt.Sprintf("Email:\"%s\",", *j.Summary.Email))
 		}
 		if j.Summary.PackageName != nil {
 			buffer.WriteString(fmt.Sprintf("PackageName:\"%s\",", *j.Summary.PackageName))
@@ -375,7 +371,12 @@ func (po *JavaPoTemplate) FillPoTemplate(tableData *InfoTable, columnsData *[]In
 	}
 	if config.Db != nil && config.Db.TableName != nil {
 		po.TableName = *config.Db.TableName
-		className := UderscoreToUpperCamelCase(po.TableName)
+		//去掉前缀，并且转为驼峰写法
+		classNameOrg := *config.Db.TableName
+		if config.Summary != nil && config.Summary.TablePrefix != nil {
+			classNameOrg = strings.Replace(classNameOrg, *(config.Summary.TablePrefix), "", 1)
+		}
+		className := UderscoreToUpperCamelCase(classNameOrg)
 		if className[0] >= 97 && className[0] <= 122 {
 			className[0] = className[0] - 32
 		}

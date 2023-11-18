@@ -1,7 +1,6 @@
 {
     "summary": {
         "author": "xiaohaizi",
-        "email": "12345@qq.com",
         "packageName": "com.zhc.test",
         "tablePrefix": "fk_"
     },
@@ -36,6 +35,6 @@
     }
 }
 解释：
-summary表示作者信息：author表示作者，email表示邮件，packageName表示java类所在的包，tablePrefix表示去掉表的前缀作为Java类名
+summary表示作者信息：author表示作者，packageName表示java类所在的包，tablePrefix表示去掉表的前缀作为Java类名(非必填)
 db表示数据库信息：dbName表示要数据库名称，host表示数据库的host，password表示密码，port表示数据库的端口，tableName表示要操作的表，user表示用户名
-typeMapping表示数据库和Java的映射关系："bigint": "Long"表示bigint映射成Java的Long
+typeMapping表示数据库和Java的映射关系："bigint": "Long" 表示bigint映射成Java的Long
