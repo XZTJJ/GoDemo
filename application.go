@@ -1,9 +1,11 @@
 package main
 
 import (
-	"GoDemo/db"
+	//"GoDemo/db"
+	"GoDemo/excel"
 )
 
 func main() {
-	db.CombinationOp()
+	//db.CombinationOp()
+	excel.CombinationOp()
 }
