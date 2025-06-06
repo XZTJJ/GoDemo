@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -61,7 +62,7 @@ func FacadeFunc() {
 // 生成zip包
 func makeZipFile(allFiles *[]generateTemplateFile) (string, error) {
 	//创建zip包
-	zipFileName := "codeGenerate-" + string(time.Now().UnixMilli()) + ".zip"
+	zipFileName := "codeGenerate-" + (strconv.FormatInt(time.Now().UnixMilli(), 10)) + ".zip"
 	out, err := os.Create(zipFileName)
 	if err != nil {
 		logger.logError("创建"+zipFileName+"失败", err)
@@ -93,24 +94,33 @@ func hanldeTalbles(p *propertiesClass, mysqlConnect *gorm.DB) (*[]generateTempla
 	for _, table := range p.tables {
 		logger.logInfo("开始处理" + table + "表")
 		tableDefine := getTableDefine(mysqlConnect, p.dbName, table)
-		if tableDefine == nil {
+		if tableDefine == nil || (*tableDefine).TableNameStr != table {
 			logger.logInfo(table + "不存在的表,直接跳过该表")
 			continue
 		}
 		//转变的类名
 		className := sqlName2CodeName(table, p.tablePrefixes, p.tableSuffixes,
 			p.tableStrategy, p.tableCamelSeparatorMap, p.tableSameSeparators)
+		//首字母大写
+		runes := []rune(className)
+		runes[0] = unicode.ToUpper(runes[0])
+		className = string(runes)
 		//处理给定表的字段
 		logger.logInfo("开始处理" + table + "表的字段")
 		//获取字段定义
 		columnsMySQLs := getColumsDefine(mysqlConnect, p.dbName, table)
+		if columnsMySQLs == nil || len(*columnsMySQLs) < 1 ||
+			(*columnsMySQLs)[0].TableSchema != p.dbName ||
+			(*columnsMySQLs)[0].TableNameStr != table {
+			logger.logInfo(table + "表没有字段")
+			columnsMySQLs = &([]columnsMySQL{})
+		}
 		//字段名转成代码的需要的信息，比如属性名等
 		codeColumns := hanldeColumns(columnsMySQLs, p)
-		logger.logInfo("开始渲染" + table + "表的所有模板")
-		templateData := assembleTemplateData(p, table, *tableDefine.TableComment, className, codeColumns)
-		fmt.Printf("渲染出来的数据为:%+v\n", *templateData)
+		logger.logInfo("开始渲染" + table + "表的所有数据")
+		templateData := assembleTemplateData(p, table, (*tableDefine).TableComment, className, codeColumns)
 		logger.logInfo("开始生产" + table + "表的所有模板文件")
-		files, err := renderingTemplate(templateData, p, className)
+		files, err := renderingTemplate(*templateData, p, className)
 		if err != nil {
 			logger.logError("生成"+table+"文件错误", err)
 			return &allFiles, err
@@ -121,7 +131,7 @@ func hanldeTalbles(p *propertiesClass, mysqlConnect *gorm.DB) (*[]generateTempla
 }
 
 // 开始渲染模板
-func renderingTemplate(templateData *map[string]any, p *propertiesClass, className string) (*[]generateTemplateFile, error) {
+func renderingTemplate(templateData map[string]interface{}, p *propertiesClass, className string) (*[]generateTemplateFile, error) {
 	var files []generateTemplateFile
 	//遍历所有的模板进行处理
 	for key, value := range p.templates {
@@ -164,7 +174,7 @@ func renderingTemplate(templateData *map[string]any, p *propertiesClass, classNa
 		//保存渲染出来的模板字节，转成字符
 		var tmplBytes bytes.Buffer
 		//渲染模板
-		err = tmpl1.Execute(&tmplBytes, *templateData)
+		err = tmpl1.Execute(&tmplBytes, templateData)
 		if err != nil {
 			logger.logError(key+"类型模板处理失败", err)
 			return &files, err
@@ -182,8 +192,8 @@ func renderingTemplate(templateData *map[string]any, p *propertiesClass, classNa
 }
 
 // 准备模板需要的所有数据
-func assembleTemplateData(p *propertiesClass, tableName, tableComment, className string, codeColumns *[]columnInfos) *map[string]any {
-	dataMap := make(map[string]any)
+func assembleTemplateData(p *propertiesClass, tableName, tableComment, className string, codeColumns *[]map[string]string) *map[string]interface{} {
+	dataMap := make(map[string]interface{})
 	dataMap["author"] = p.authorStr
 	dataMap["version"] = p.versionStr
 	dataMap["desc"] = p.descStr
@@ -204,17 +214,22 @@ func assembleTemplateData(p *propertiesClass, tableName, tableComment, className
 }
 
 // 根据字段结构处理表的字段
-func hanldeColumns(cols *[]columnsMySQL, p *propertiesClass) *[]columnInfos {
-	var columns []columnInfos
+func hanldeColumns(cols *[]columnsMySQL, p *propertiesClass) *[]map[string]string {
+	columns := make([]map[string]string, 0)
+	if cols == nil {
+		return &columns
+	} else {
+		columns = make([]map[string]string, 0, len(*cols))
+	}
 	for _, col := range *cols {
-		comment := *col.ColumnComment
-		sqlName := *col.ColumnName
-		sqlDateType := *col.DataType
+		comment := col.ColumnComment
+		sqlName := col.ColumnName
+		sqlDateType := col.DataType
 		codeDateType := p.sqlCodeType[sqlDateType]
 		codeFieldName := sqlName2CodeName(sqlName, p.fieldPrefixes, p.fieldSuffixes, p.fieldStrategy,
 			p.fieldCamelSeparatorMap, p.fieldSameSeparators)
-		column := columnInfos{columnComment: comment, columnSQLName: sqlName,
-			columnJavaName: codeFieldName, columnSQLType: sqlDateType, columnJavaType: codeDateType}
+		column := map[string]string{"columnComment": comment, "columnSQLName": sqlName,
+			"columnJavaName": codeFieldName, "columnSQLType": sqlDateType, "columnJavaType": codeDateType}
 		columns = append(columns, column)
 	}
 	return &columns
@@ -223,7 +238,7 @@ func hanldeColumns(cols *[]columnsMySQL, p *propertiesClass) *[]columnInfos {
 // 获取字段定义
 func getColumsDefine(connect *gorm.DB, dbName, tableName string) *[]columnsMySQL {
 	var results []columnsMySQL
-	connect.Where(" table_schema = ? AND table_name = ? ", dbName, tableName).Order("ordinal_position").Find(&results)
+	connect.Where(" TABLE_SCHEMA = ? AND TABLE_NAME = ? ", dbName, tableName).Order("ordinal_position").Find(&results)
 	return &results
 }
 
@@ -251,7 +266,7 @@ func sqlName2CodeName(sqlName string, prefiexArray []string, suffixesArray []str
 	case STRATEGY_CAMEL:
 		var resultName []rune
 		//首字符大写,默认为true
-		nextUpper := true
+		nextUpper := false
 		for _, r := range codeName {
 			//是否包含某个分隔符
 			_, ok := camelSeparatorSet[r]
@@ -283,8 +298,7 @@ func sqlName2CodeName(sqlName string, prefiexArray []string, suffixesArray []str
 // 获取数据库中表定义相关信息
 func getTableDefine(mySQLConnect *gorm.DB, dbName, tableName string) *tableMySQL {
 	var tableDefine tableMySQL
-	mySQLConnect.Select("table_name, table_comment, create_time").
-		Where(" table_schema = ? AND table_name = ? ", dbName, tableName).Find(&tableDefine)
+	mySQLConnect.Where(" TABLE_SCHEMA = ? AND TABLE_NAME = ? ", dbName, tableName).Find(&tableDefine)
 	return &tableDefine
 }
 
@@ -395,55 +409,59 @@ func parseConfig(p *properties.Properties) (*propertiesClass, error) {
 		if !strings.HasPrefix(key, J_TEMPLATE_TYPE_PREFIX) {
 			continue
 		}
-		//模板文件类型
+		//声明变量
+		var cTemplate customeTemplate
+		var ok bool
 		typeStr := strings.TrimPrefix(key, J_TEMPLATE_TYPE_PREFIX)
 		switch {
 		case strings.HasSuffix(key, J_TEMPLATE_TYPE_SUFFIX_PACKGE):
 			//处理模板的package信息
-			typeStr = strings.TrimSuffix(typeStr, J_TEMPLATE_TYPE_PREFIX)
-			ctemplate, ok := ctemplateMap[typeStr]
+			typeStr = strings.TrimSuffix(typeStr, J_TEMPLATE_TYPE_SUFFIX_PACKGE)
+			cTemplate, ok = ctemplateMap[typeStr]
 			if !ok {
-				ctemplateMap[typeStr] = customeTemplate{packageStr: value}
+				cTemplate = customeTemplate{packageStr: value}
 			} else {
-				ctemplate.packageStr = value
+				cTemplate.packageStr = value
 			}
 		case strings.HasSuffix(key, J_TEMPLATE_TYPE_SUFFIX_TEMPLATE):
 			//处理模板的template信息
 			typeStr = strings.TrimSuffix(typeStr, J_TEMPLATE_TYPE_SUFFIX_TEMPLATE)
-			ctemplate, ok := ctemplateMap[typeStr]
+			cTemplate, ok = ctemplateMap[typeStr]
 			if !ok {
-				ctemplateMap[typeStr] = customeTemplate{templateStr: value}
+				cTemplate = customeTemplate{templateStr: value}
 			} else {
-				ctemplate.templateStr = value
+				cTemplate.templateStr = value
 			}
 		case strings.HasSuffix(key, J_TEMPLATE_TYPE_SUFFIX_CLASSNAMEPREFIX):
 			//处理模板的classNamePrefix信息
 			typeStr = strings.TrimSuffix(typeStr, J_TEMPLATE_TYPE_SUFFIX_CLASSNAMEPREFIX)
-			ctemplate, ok := ctemplateMap[typeStr]
+			cTemplate, ok = ctemplateMap[typeStr]
 			if !ok {
-				ctemplateMap[typeStr] = customeTemplate{classNamePrefix: value}
+				cTemplate = customeTemplate{classNamePrefix: value}
 			} else {
-				ctemplate.classNamePrefix = value
+				cTemplate.classNamePrefix = value
 			}
 		case strings.HasSuffix(key, J_TEMPLATE_TYPE_SUFFIX_CLASSNAMESUFFIX):
 			//处理模板的classNameSuffix信息
 			typeStr = strings.TrimSuffix(typeStr, J_TEMPLATE_TYPE_SUFFIX_CLASSNAMESUFFIX)
-			ctemplate, ok := ctemplateMap[typeStr]
+			cTemplate, ok = ctemplateMap[typeStr]
 			if !ok {
-				ctemplateMap[typeStr] = customeTemplate{classNameSuffix: value}
+				cTemplate = customeTemplate{classNameSuffix: value}
 			} else {
-				ctemplate.classNameSuffix = value
+				cTemplate.classNameSuffix = value
 			}
 		case strings.HasSuffix(key, J_TEMPLATE_TYPE_SUFFIX_FILETYPE):
 			//处理模板的fileType信息
 			typeStr = strings.TrimSuffix(typeStr, J_TEMPLATE_TYPE_SUFFIX_FILETYPE)
-			ctemplate, ok := ctemplateMap[typeStr]
+			cTemplate, ok = ctemplateMap[typeStr]
 			if !ok {
-				ctemplateMap[typeStr] = customeTemplate{fileTypeStr: value}
+				cTemplate = customeTemplate{fileTypeStr: value}
 			} else {
-				ctemplate.fileTypeStr = value
+				cTemplate.fileTypeStr = value
 			}
 		}
+		//重新放入
+		ctemplateMap[typeStr] = cTemplate
 	}
 	//检查模板的必填项
 	for key, value := range ctemplateMap {
@@ -522,20 +540,20 @@ func bootStrapInfo() (*properties.Properties, error) {
 			fmt.Printf("#################################以下是mybatisplusXml模板示例#################################\n")
 			fmt.Println(showDefaultMybatisplusXmlTemplate())
 		} else if input == "Y" || input == "y" {
-			p, err := loadProperties(DEFAULT_FILE_NAME)
-			if err != nil {
-				logger.logError("读取"+DEFAULT_FILE_NAME+"配置文件失败", err)
-				return nil, err
+			p, err1 := loadProperties(DEFAULT_FILE_NAME)
+			if err1 != nil {
+				logger.logError("读取"+DEFAULT_FILE_NAME+"配置文件失败", err1)
+				return nil, err1
 			}
 			logger.logInfo(DEFAULT_FILE_NAME + "properties文件读取成功")
 			return p, nil
 		} else {
-			p, err := loadProperties(input)
-			if err != nil {
-				logger.logError("读取"+input+"配置文件失败", err)
-				return nil, err
+			p, err2 := loadProperties(input)
+			if err2 != nil {
+				logger.logError("读取"+input+"配置文件失败", err2)
+				return nil, err2
 			}
-			logger.logInfo(DEFAULT_FILE_NAME + "properties文件读取成功")
+			logger.logInfo(input + "properties文件读取成功")
 			return p, nil
 		}
 	}
@@ -752,14 +770,15 @@ package {{.poPackage}};
 import lombok.Data;
 
 /**
- * {{.tableName}} 对应的Po类型,
+ * {{.tableSQLName}} 对应的Po类型,
  * {{.tableComment}}
  *
  * @author {{.author}}
  * @version {{.version}}
  * @desc {{.desc}}
  * @date {{.datetime}}
- */  
+ */
+@Data   
 public class {{.poClassNamePrefix}}{{.tableJavaName}}{{.poClassNameSuffix}} implements Serializable {
 	private static final long serialVersionUID = 1L;
 	{{range $index, $value := .columnInfos}}
@@ -780,9 +799,11 @@ package {{.mybatisplusJavaPackage}};
 
 import {{.poPackage}}.{{.poClassNamePrefix}}{{.tableJavaName}}{{.poClassNameSuffix}};
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 /**
- * {{.tableName}} 对应的mybatisplus操作类，
+ * {{.tableSQLName}} 对应的mybatisplus操作类，
  * {{.tableComment}}
  *
  * @author {{.author}}
@@ -790,7 +811,9 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
  * @desc {{.desc}}
  * @date {{.datetime}}
  */
-public interface {{.mybatisplusClassNamePrefix}}{{.tableJavaName}}{{.mybatisplusClassNameSuffix}} extends BaseMapper<{{.poClassNamePrefix}}{{.tableJavaName}}{{.poClassNameSuffix}}> {
+@Service
+@Slf4j 
+public interface {{.mybatisplusJavaClassNamePrefix}}{{.tableJavaName}}{{.mybatisplusJavaClassNameSuffix}} extends BaseMapper<{{.poClassNamePrefix}}{{.tableJavaName}}{{.poClassNameSuffix}}> {
 	
 }
 	`
@@ -803,13 +826,13 @@ func showDefaultMybatisplusXmlTemplate() string {
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="{{.mybatisplusJavaPackage}}.{{.mybatisplusClassNamePrefix}}{{.tableJavaName}}{{.mybatisplusClassNameSuffix}}">
+<mapper namespace="{{.mybatisplusJavaPackage}}.{{.mybatisplusJavaClassNamePrefix}}{{.tableJavaName}}{{.mybatisplusJavaClassNameSuffix}}">
 
 	<!-- 可根据自己的需求，是否要使用 -->
-	<resultMap type="{{.poPackage}}.{{.poClassNamePrefix}}{{.tableJavaName}}{{.poClassNameSuffix}}" id="{{.poPackage}}.{{.poClassNamePrefix}}{{.tableJavaName}}{{.poClassNameSuffix}}Map">
-	{{range $index, $value := .columnInfos}}
-		<result property="{{$value.columnJavaName}}" column="{{$value.columnSQLName}}"/>
-	{{end}}
+	<resultMap type="{{.poPackage}}.{{.poClassNamePrefix}}{{.tableJavaName}}{{.poClassNameSuffix}}" id="{{.poClassNamePrefix}}{{.tableJavaName}}{{.poClassNameSuffix}}Map">
+	   {{range $index, $value := .columnInfos}}
+	   <result property="{{$value.columnJavaName}}" column="{{$value.columnSQLName}}"/>
+	   {{end}}
 	</resultMap>
 
 </mapper>
@@ -820,15 +843,6 @@ func showDefaultMybatisplusXmlTemplate() string {
 /*************************配置文件和模板示例结束********************************/
 
 /*************************构建模板用到的结构体开始*********************************/
-// 字段整个相关的结构体
-type columnInfos struct {
-	columnComment  string
-	columnSQLName  string
-	columnJavaName string
-	columnSQLType  string
-	columnJavaType string
-}
-
 // 根据模板生成文件持有的信息
 type generateTemplateFile struct {
 	fullFileName string
@@ -873,29 +887,29 @@ type customeTemplate struct {
 /*************************构建模板用到的结构体结束*********************************/
 
 /*************************MySQL对应的表和字段映射的结构体开始*******************/
-// 表的表结构()，通是绑定对应表，使用指针的原因，是为了处理空的默认值操作
+// 表的表结构()，通是绑定对应表，注意默认值
 type tableMySQL struct {
-	TableCatalog   *string    `gorm:"column:TABLE_CATALOG"`
-	TableSchema    *string    `gorm:"column:TABLE_SCHEMA"`
-	TableNameStr   *string    `gorm:"column:TABLE_NAME"`
-	TableType      *string    `gorm:"column:TABLE_TYPE"`
-	Engine         *string    `gorm:"column:ENGINE"`
-	Version        *int       `gorm:"column:VERSION"`
-	RowFormat      *string    `gorm:"column:ROW_FORMAT"`
-	TableRows      *int64     `gorm:"column:TABLE_ROWS"`
-	AvgRowLength   *int64     `gorm:"column:AVG_ROW_LENGTH"`
-	DataLength     *int64     `gorm:"column:DATA_LENGTH"`
-	MaxDataLength  *int64     `gorm:"column:MAX_DATA_LENGTH"`
-	IndexLength    *int64     `gorm:"column:INDEX_LENGTH"`
-	DataFree       *int64     `gorm:"column:DATA_FREE"`
-	AutoIncrement  *int64     `gorm:"column:AUTO_INCREMENT"`
-	CreateTime     *time.Time `gorm:"column:CREATE_TIME"`
-	UpdateTime     *time.Time `gorm:"column:UPDATE_TIME"`
-	CheckTime      *time.Time `gorm:"column:CHECK_TIME"`
-	TableCollation *string    `gorm:"column:TABLE_COLLATION"`
-	Checksum       *string    `gorm:"column:CHECKSUM"`
-	CreateOptions  *string    `gorm:"column:CREATE_OPTIONS"`
-	TableComment   *string    `gorm:"column:TABLE_COMMENT"`
+	TableCatalog   string    `gorm:"column:TABLE_CATALOG"`
+	TableSchema    string    `gorm:"column:TABLE_SCHEMA"`
+	TableNameStr   string    `gorm:"column:TABLE_NAME"`
+	TableType      string    `gorm:"column:TABLE_TYPE"`
+	Engine         string    `gorm:"column:ENGINE"`
+	Version        int       `gorm:"column:VERSION"`
+	RowFormat      string    `gorm:"column:ROW_FORMAT"`
+	TableRows      int64     `gorm:"column:TABLE_ROWS"`
+	AvgRowLength   int64     `gorm:"column:AVG_ROW_LENGTH"`
+	DataLength     int64     `gorm:"column:DATA_LENGTH"`
+	MaxDataLength  int64     `gorm:"column:MAX_DATA_LENGTH"`
+	IndexLength    int64     `gorm:"column:INDEX_LENGTH"`
+	DataFree       int64     `gorm:"column:DATA_FREE"`
+	AutoIncrement  int64     `gorm:"column:AUTO_INCREMENT"`
+	CreateTime     time.Time `gorm:"column:CREATE_TIME"`
+	UpdateTime     time.Time `gorm:"column:UPDATE_TIME"`
+	CheckTime      time.Time `gorm:"column:CHECK_TIME"`
+	TableCollation string    `gorm:"column:TABLE_COLLATION"`
+	Checksum       string    `gorm:"column:CHECKSUM"`
+	CreateOptions  string    `gorm:"column:CREATE_OPTIONS"`
+	TableComment   string    `gorm:"column:TABLE_COMMENT"`
 }
 
 // 指定tableMySQL结构体对应的表名，gorm对应语法规则
@@ -903,30 +917,30 @@ func (i *tableMySQL) TableName() string {
 	return "TABLES"
 }
 
-// 字段的表结构()，通是绑定对应字段，使用指针的原因，是为了处理空的默认值操作
+// 字段的表结构()，通是绑定对应字段，注意默认值
 type columnsMySQL struct {
-	TableCatalog           *string `gorm:"column:TABLE_CATALOG"`
-	TableSchema            *string `gorm:"column:TABLE_SCHEMA"`
-	TableNameStr           *string `gorm:"column:TABLE_NAME"`
-	ColumnName             *string `gorm:"column:COLUMN_NAME"`
-	OrdinalPosition        *int    `gorm:"column:ORDINAL_POSITION"`
-	ColumnDefault          *string `gorm:"column:COLUMN_DEFAULT"`
-	IsNullable             *string `gorm:"column:IS_NULLABLE"`
-	DataType               *string `gorm:"column:DATA_TYPE"`
-	CharacterMaximumLength *int    `gorm:"column:CHARACTER_MAXIMUM_LENGTH"`
-	CharacterOctetLength   *int    `gorm:"column:CHARACTER_OCTET_LENGTH"`
-	NumericPrecision       *int    `gorm:"column:NUMERIC_PRECISION"`
-	NumericScale           *int    `gorm:"column:NUMERIC_SCALE"`
-	DatetimePrecision      *int    `gorm:"column:DATETIME_PRECISION"`
-	CharacterSetName       *string `gorm:"column:CHARACTER_SET_NAME"`
-	CollationName          *string `gorm:"column:COLLATION_NAME"`
-	ColumnType             *string `gorm:"column:COLUMN_TYPE"`
-	ColumnKey              *string `gorm:"column:COLUMN_KEY"`
-	Extra                  *string `gorm:"column:EXTRA"`
-	Privileges             *string `gorm:"column:PRIVILEGES"`
-	ColumnComment          *string `gorm:"column:COLUMN_COMMENT"`
-	GenerationExpression   *string `gorm:"column:GENERATION_EXPRESSION"`
-	SrsId                  *string `gorm:"column:SRS_ID"`
+	TableCatalog           string `gorm:"column:TABLE_CATALOG"`
+	TableSchema            string `gorm:"column:TABLE_SCHEMA"`
+	TableNameStr           string `gorm:"column:TABLE_NAME"`
+	ColumnName             string `gorm:"column:COLUMN_NAME"`
+	OrdinalPosition        int    `gorm:"column:ORDINAL_POSITION"`
+	ColumnDefault          string `gorm:"column:COLUMN_DEFAULT"`
+	IsNullable             string `gorm:"column:IS_NULLABLE"`
+	DataType               string `gorm:"column:DATA_TYPE"`
+	CharacterMaximumLength int    `gorm:"column:CHARACTER_MAXIMUM_LENGTH"`
+	CharacterOctetLength   int    `gorm:"column:CHARACTER_OCTET_LENGTH"`
+	NumericPrecision       int    `gorm:"column:NUMERIC_PRECISION"`
+	NumericScale           int    `gorm:"column:NUMERIC_SCALE"`
+	DatetimePrecision      int    `gorm:"column:DATETIME_PRECISION"`
+	CharacterSetName       string `gorm:"column:CHARACTER_SET_NAME"`
+	CollationName          string `gorm:"column:COLLATION_NAME"`
+	ColumnType             string `gorm:"column:COLUMN_TYPE"`
+	ColumnKey              string `gorm:"column:COLUMN_KEY"`
+	Extra                  string `gorm:"column:EXTRA"`
+	Privileges             string `gorm:"column:PRIVILEGES"`
+	ColumnComment          string `gorm:"column:COLUMN_COMMENT"`
+	GenerationExpression   string `gorm:"column:GENERATION_EXPRESSION"`
+	SrsId                  string `gorm:"column:SRS_ID"`
 }
 
 // 指定columnsMySQL结构体对应的表明，gorm对应语法规则
