@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -305,8 +304,8 @@ func getTableDefine(mySQLConnect *gorm.DB, dbName, tableName string) *tableMySQL
 // 初始化数据库连接
 func getMySQLConnect(p *propertiesClass) (*gorm.DB, error) {
 	//连接mysql,RL编码处理特殊字符
-	openUrl := url.QueryEscape(p.dbUser) + ":" + url.QueryEscape(p.dbPassword) + "@tcp(" + p.dbHost + ":" + p.dbPort + ")/" +
-		url.QueryEscape(DB_INFORMATION_SCHEMA) + "?charset=utf8mb4&parseTime=True&loc=Local"
+	openUrl := p.dbUser + ":" + p.dbPassword + "@tcp(" + p.dbHost + ":" + p.dbPort + ")/" +
+		DB_INFORMATION_SCHEMA + "?charset=utf8mb4&parseTime=True&loc=Local&tls=skip-verify"
 	connect, err := gorm.Open(mysql.Open(openUrl))
 	if err != nil {
 		logger.logError("数据库连接失败，请检查配置信息", err)
