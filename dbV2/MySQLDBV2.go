@@ -305,7 +305,11 @@ func getTableDefine(mySQLConnect *gorm.DB, dbName, tableName string) *tableMySQL
 func getMySQLConnect(p *propertiesClass) (*gorm.DB, error) {
 	//连接mysql,RL编码处理特殊字符
 	openUrl := p.dbUser + ":" + p.dbPassword + "@tcp(" + p.dbHost + ":" + p.dbPort + ")/" +
-		DB_INFORMATION_SCHEMA + "?charset=utf8mb4&parseTime=True&loc=Local&tls=skip-verify"
+		DB_INFORMATION_SCHEMA
+	if p.extraUrlMetaInfo != EMPTY_STRING {
+		openUrl = openUrl + "?" + p.extraUrlMetaInfo
+	}
+	logger.logInfo("数据库连接信息为:" + openUrl)
 	connect, err := gorm.Open(mysql.Open(openUrl))
 	if err != nil {
 		logger.logError("数据库连接失败，请检查配置信息", err)
@@ -340,6 +344,8 @@ func parseConfig(p *properties.Properties) (*propertiesClass, error) {
 	if err != nil {
 		return &propertiesClass, err
 	}
+	propertiesClass.extraUrlMetaInfo = p.GetString(BD_EXTRAURLMETAINFO, EMPTY_STRING)
+
 	var tables string
 	tables, err = getValueFromProperties(p, HD_TABLES, "没有指定表名称,请配置表名称")
 	if err != nil {
@@ -568,6 +574,7 @@ const (
 	BD_NAME               = "database.dbName"
 	BD_USER               = "database.user"
 	BD_PASSWORD           = "database.password"
+	BD_EXTRAURLMETAINFO   = "database.extraUrlMetaInfo"
 	DB_INFORMATION_SCHEMA = "information_schema"
 	//表明和字段名处理信息
 	HD_TABLES            = "handle.toCode.tables"
@@ -641,9 +648,7 @@ func fileExists(fileName string) bool {
 /*************************配置文件和模板示例开始********************************/
 //默认配置文件
 func showDefaultProperties() string {
-	propertiesStr := `
-#配置信息采用properties格式,默认读取执行文件目录下面的configGoPro.properties执行文件信息
-
+	propertiesStr := `#配置信息采用properties格式,默认读取执行文件目录下面的configGoPro.properties执行文件信息
 #MySQL数据库的地址，必填
 database.host=
 #MySQL数据库的port，必填
@@ -654,6 +659,8 @@ database.dbName=
 database.user=
 #MySQL数据库的账号密码，必填
 database.password=
+#MySQL数据库的额外连接信息，非必填，比如:charset=utf8mb4&parseTime=True
+database.extraUrlMetaInfo=
 
 #需要生成java代码的数据库表明,通过,分割多个表名，必填
 handle.toCode.tables=
@@ -733,8 +740,7 @@ java.common.datetime=
 
 // 默认变量
 func showDefaultVariable() string {
-	variables := `
-author：作者，对应配置java.common.author
+	variables := `author：作者，对应配置java.common.author
 version：版本号，对应配置java.common.version
 desc：描述，对应配置java.common.desc
 datetime:日期，对应配置java.common.datetime
@@ -763,8 +769,7 @@ columnJavaType：sql类型映射的代码类型，在columnInfos的遍历中使�
 
 // 默认po模板
 func showDefaultPOTemplate() string {
-	pOTemplate := `
-package {{.poPackage}};
+	pOTemplate := `package {{.poPackage}};
 
 import lombok.Data;
 
@@ -793,8 +798,7 @@ public class {{.poClassNamePrefix}}{{.tableJavaName}}{{.poClassNameSuffix}} impl
 
 // 默认mybatisplusJava模板
 func showDefaultMybatisplusJavaTemplate() string {
-	mybatisplusJavaTemplate := `
-package {{.mybatisplusJavaPackage}};
+	mybatisplusJavaTemplate := `package {{.mybatisplusJavaPackage}};
 
 import {{.poPackage}}.{{.poClassNamePrefix}}{{.tableJavaName}}{{.poClassNameSuffix}};
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
@@ -821,8 +825,7 @@ public interface {{.mybatisplusJavaClassNamePrefix}}{{.tableJavaName}}{{.mybatis
 
 // 默认mybatisplusJava模板
 func showDefaultMybatisplusXmlTemplate() string {
-	mybatisplusXmlTemplate := `
-<?xml version="1.0" encoding="UTF-8"?>
+	mybatisplusXmlTemplate := `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="{{.mybatisplusJavaPackage}}.{{.mybatisplusJavaClassNamePrefix}}{{.tableJavaName}}{{.mybatisplusJavaClassNameSuffix}}">
@@ -855,6 +858,7 @@ type propertiesClass struct {
 	dbUser                 string
 	dbPassword             string
 	dbName                 string
+	extraUrlMetaInfo       string
 	tables                 []string
 	tablePrefixes          []string
 	tableSuffixes          []string
